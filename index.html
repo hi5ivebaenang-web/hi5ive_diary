@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>나의 일기</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#ffffff; --soft:#f6f7f9; --line:#e7e8ec; --ink:#1d1d1f; --sub:#5f6470; --muted:#9a9fa8;
+  --accent:#2f5bea; --accent-soft:#eef2fe; --danger:#d64545; --ok:#1f9d55;
+  --radius:14px;
+  --font:-apple-system,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic","Samsung Sans",sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.55}
+body{min-height:100vh;overscroll-behavior-y:contain}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+.hidden{display:none!important}
+
+/* 상단바 */
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top))}
+.top h1{font-size:19px;margin:0;font-weight:700;letter-spacing:-.3px}
+.top .clock{font-size:13px;color:var(--muted);margin-left:8px;font-weight:400}
+.nav{display:flex;gap:4px}
+.nav button{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--sub)}
+.nav button.on{background:var(--accent-soft);color:var(--accent)}
+.nav svg{width:22px;height:22px}
+
+main{max-width:860px;margin:0 auto;padding:16px 16px 120px}
+
+/* 날짜 카드 */
+.daycard{padding:6px 2px 14px}
+.daycard .big{font-size:28px;font-weight:700;letter-spacing:-.6px}
+.daycard .meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px;color:var(--sub);font-size:15px}
+.badge{display:inline-block;font-size:12.5px;padding:2px 9px;border-radius:999px;background:var(--soft);border:1px solid var(--line);color:var(--sub)}
+.badge.dev{background:var(--accent-soft);border-color:#d6defc;color:var(--accent);font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px}
+.chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line);font-size:14px;color:var(--sub)}
+.chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+.banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff8e6;border:1px solid #f3dfa6;color:#7a5b00;
+  padding:10px 14px;border-radius:12px;font-size:14.5px;margin-bottom:12px}
+.banner button{color:#7a5b00;font-weight:700;white-space:nowrap}
+
+/* 아코디언 */
+.acc{border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;background:#fff}
+.acc-h{width:100%;display:flex;align-items:center;gap:10px;padding:16px 18px;text-align:left;font-size:17.5px;font-weight:600}
+.acc-h .dot{width:8px;height:8px;border-radius:50%;background:transparent;flex:none}
+.acc-h .dot.on{background:var(--accent)}
+.acc-h .sum{margin-left:auto;color:var(--muted);font-size:13.5px;font-weight:400;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acc-h .chev{flex:none;transition:transform .2s;color:var(--muted)}
+.acc.open .acc-h .chev{transform:rotate(180deg)}
+.acc-b{display:none;padding:0 16px 16px}
+.acc.open .acc-b{display:block}
+
+/* 작성 영역 */
+.wtabs{display:inline-flex;background:var(--soft);border-radius:10px;padding:3px;margin-bottom:10px}
+.wtabs button{padding:7px 16px;border-radius:8px;font-size:14.5px;color:var(--sub)}
+.wtabs button.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tools{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px}
+.tools .sep{width:1px;height:24px;background:var(--line);margin:0 4px}
+.tbtn{height:36px;min-width:36px;padding:0 10px;border-radius:9px;border:1px solid var(--line);font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.tbtn.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.sw{width:30px;height:30px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--line)}
+.sw.on{box-shadow:0 0 0 2px var(--accent)}
+.szdot{display:inline-block;border-radius:50%;background:currentColor}
+.padwrap{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.padwrap canvas{display:block;width:100%;touch-action:none}
+.padfoot{display:flex;justify-content:space-between;align-items:center;margin-top:6px;color:var(--muted);font-size:13px}
+.linkbtn{color:var(--accent);font-size:14px;font-weight:600;padding:6px 2px}
+.tawrap{position:relative}
+textarea.ta{width:100%;min-height:180px;border:1px solid var(--line);border-radius:12px;padding:14px 60px 14px 14px;resize:none;line-height:1.7;background:#fff;outline:none}
+textarea.ta:focus{border-color:#b9c7f7}
+.mic{position:absolute;right:10px;top:10px;width:42px;height:42px;border-radius:50%;background:var(--soft);display:grid;place-items:center;color:var(--sub)}
+.mic svg{width:20px;height:20px}
+.mic.rec{background:var(--danger);color:#fff;animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(214,69,69,.45)}70%{box-shadow:0 0 0 12px rgba(214,69,69,0)}100%{box-shadow:0 0 0 0 rgba(214,69,69,0)}}
+
+/* 첨부 */
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:10px}
+.ph{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--soft)}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.x{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:16px;line-height:28px;text-align:center}
+.row{display:flex;gap:8px;align-items:center}
+.inp{flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;outline:none}
+.inp:focus{border-color:#b9c7f7}
+.btn{padding:10px 16px;border-radius:10px;background:var(--ink);color:#fff;font-weight:600;font-size:15px;white-space:nowrap}
+.btn.sec{background:var(--soft);color:var(--ink);border:1px solid var(--line)}
+.btn.blue{background:var(--accent)}
+.btn.red{background:var(--danger)}
+.links{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.lk{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px;position:relative}
+.lk img{width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;flex:none;background:var(--soft)}
+.lk a{color:var(--ink);text-decoration:none;font-size:14px;word-break:break-all;flex:1}
+.lk .x{position:static;flex:none;background:var(--soft);color:var(--sub)}
+.sub{font-size:14px;color:var(--sub);margin:14px 0 8px;font-weight:600}
+
+/* 창작 기록 */
+.song{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:#fcfcfd}
+.song h4{margin:0 0 10px;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+.f{margin-bottom:10px}
+.f label{display:block;font-size:13.5px;color:var(--sub);margin-bottom:4px}
+.f .inp,.f textarea{width:100%}
+.f textarea{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:72px;resize:vertical;outline:none;background:#fff}
+.contrib{width:100%;border-collapse:collapse;font-size:14.5px}
+.contrib td{padding:6px 4px;border-bottom:1px solid var(--line)}
+.contrib select{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff;width:100%}
+.vers{font-size:14px}
+.ver{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
+.ver span{color:var(--sub)}
+
+/* 달력 */
+.calhead{display:flex;align-items:center;justify-content:space-between;margin:4px 0 12px}
+.calhead h2{margin:0;font-size:22px}
+.calhead button{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);font-size:18px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal .wd{text-align:center;font-size:13px;color:var(--muted);padding:4px 0}
+.cal .d{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;position:relative}
+.cal .d.has{font-weight:700}
+.cal .d.has::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:3px}
+.cal .d.today{outline:2px solid var(--accent);outline-offset:-2px}
+.cal .d.sun{color:#d14b4b}.cal .d.sat{color:#3a66d6}
+.cal .d.sel{background:var(--accent-soft)}
+.daylist{margin-top:16px}
+.ditem{display:flex;justify-content:space-between;align-items:center;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;width:100%;text-align:left}
+.ditem small{color:var(--muted)}
+
+/* 설정 */
+.card{border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.card h3{margin:0 0 6px;font-size:16.5px}
+.card p{margin:0 0 12px;color:var(--sub);font-size:14.5px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.toggle{display:flex;align-items:center;justify-content:space-between}
+.toggle input{width:22px;height:22px}
+
+/* 잠금 화면 */
+#lock{position:fixed;inset:0;z-index:100;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+#lock h2{margin:0 0 6px;font-size:22px}
+#lock .msg{color:var(--sub);min-height:24px;font-size:15px}
+.pins{display:flex;gap:16px;margin:24px 0 30px}
+.pins i{width:16px;height:16px;border-radius:50%;border:2px solid var(--ink)}
+.pins i.f{background:var(--ink)}
+.pad{display:grid;grid-template-columns:repeat(3,78px);gap:14px}
+.pad button{height:78px;border-radius:50%;background:var(--soft);font-size:26px;font-weight:500}
+.pad button:active{background:var(--line)}
+.forgot{margin-top:26px;color:var(--muted);font-size:14px;text-decoration:underline}
+.shake{animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}
+
+/* 모달 & 토스트 */
+.modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:#fff;width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:20px;max-height:86vh;overflow:auto}
+.sheet h3{margin:0 0 10px}
+.sheet img{max-width:100%;border-radius:10px}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:8px 16px;border-radius:999px;font-size:14px;z-index:95;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:.92}
+
+/* 인쇄(창작 경위서) */
+#print{display:none}
+@media print{
+  @page{size:A4;margin:18mm 16mm 20mm;@bottom-center{content:counter(page) "/" counter(pages);font-size:10pt;color:#444}}
+  body>*:not(#print){display:none!important}
+  #print{display:block;font-size:11pt;color:#000}
+  #print h1{font-size:20pt;text-align:center;margin:0 0 4mm}
+  #print .pd{text-align:center;color:#444;margin-bottom:8mm}
+  #print h2{font-size:13pt;border-bottom:1px solid #000;padding-bottom:1mm;margin:7mm 0 3mm}
+  #print table{width:100%;border-collapse:collapse}
+  #print td,#print th{border:1px solid #888;padding:2mm 3mm;text-align:left;vertical-align:top}
+  #print th{background:#f0f0f0;width:32%}
+  #print pre{white-space:pre-wrap;font-family:inherit;margin:0}
+  #print img{max-width:100%;border:1px solid #ccc}
+  #print .v{page-break-inside:avoid;margin-bottom:4mm}
+  #print .note{color:#555;font-size:9pt;margin-top:8mm}
+}
+</style>
+</head>
+<body>
+
+<div id="lock" class="hidden">
+  <h2 id="lockTitle">비밀번호</h2>
+  <div class="msg" id="lockMsg"></div>
+  <div class="pins" id="pins"><i></i><i></i><i></i><i></i></div>
+  <div class="pad" id="keypad"></div>
+  <button class="forgot" id="forgot">비밀번호를 잊으셨나요?</button>
+</div>
+
+<header class="top">
+  <h1>나의 일기<span class="clock" id="clock"></span></h1>
+  <nav class="nav">
+    <button data-go="today" title="오늘"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button>
+    <button data-go="cal" title="달력"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></button>
+    <button data-go="set" title="설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </nav>
+</header>
+
+<main id="view"></main>
+<div id="print"></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="photoInput" accept="image/*" multiple class="hidden">
+<input type="file" id="importInput" accept=".json,application/json" class="hidden">
+
+<script>
+'use strict';
+/* =========================================================
+   나의 일기 (hi5ive_diary) v1
+   - 모든 일기는 이 기기 브라우저(IndexedDB)에만 저장됩니다.
+   ========================================================= */
+const APP_ID = 'hi5ive_diary';
+const SECTIONS = [
+  {k:'memory', t:'오늘의 기억'},
+  {k:'feeling', t:'느낀 점'},
+  {k:'plan', t:'내일의 계획·구상'},
+  {k:'note', t:'비고'},
+];
+const ROLE_OPTS = ['본인','수노(AI)','본인+수노','해당 없음'];
+const MIC_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+const CHEV = '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>';
+
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad2 = n => String(n).padStart(2,'0');
+const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+const WD = ['일','월','화','수','목','금','토'];
+const parseYmd = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const fmtDateBig = s => { const d = parseYmd(s); return `${d.getMonth()+1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일`; };
+const fmtTime = t => { const d = new Date(t); const h = d.getHours(); return `${h<12?'오전':'오후'} ${h%12||12}:${pad2(d.getMinutes())}`; };
+const fmtFull = t => { const d = new Date(t); return `${d.getFullYear()}.${pad2(d.getMonth()+1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),1400); }
+
+function detectDevice(){
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? '휴대폰' : '탭';
+  if (/iPad/.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua))) return '탭';
+  if (/iPhone|iPod/.test(ua)) return '휴대폰';
+  return 'PC';
+}
+const DEVICE = detectDevice();
+
+/* ---------------- 저장소 (IndexedDB) ---------------- */
+const DB = {
+  db:null,
+  open(){
+    return new Promise((res, rej) => {
+      const r = indexedDB.open(APP_ID, 1);
+      r.onupgradeneeded = () => {
+        const db = r.result;
+        const es = db.createObjectStore('entries', {keyPath:'id'});
+        es.createIndex('date','date');
+        db.createObjectStore('settings', {keyPath:'k'});
+        db.createObjectStore('snapshots', {keyPath:'id', autoIncrement:true});
+      };
+      r.onsuccess = () => { this.db = r.result; res(); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  req(store, mode, fn){
+    return new Promise((res, rej) => {
+      const tx = this.db.transaction(store, mode); const st = tx.objectStore(store);
+      const q = fn(st); tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error);
+    });
+  },
+  get(s,k){ return this.req(s,'readonly',st=>st.get(k)); },
+  put(s,v){ return this.req(s,'readwrite',st=>st.put(v)); },
+  del(s,k){ return this.req(s,'readwrite',st=>st.delete(k)); },
+  all(s){ return this.req(s,'readonly',st=>st.getAll()); },
+  clear(s){ return this.req(s,'readwrite',st=>st.clear()); },
+  byDate(date){ return this.req('entries','readonly',st=>st.index('date').getAll(date)); },
+};
+async function getSet(k, def){ const r = await DB.get('settings', k); return r ? r.v : def; }
+function setSet(k, v){ return DB.put('settings', {k, v}); }
+
+/* ---------------- 일기 데이터 ---------------- */
+function blankSection(){ return {mode:'pen', text:'', strokes:[], h:1.0}; }
+function newEntry(date){
+  const e = {id:uid(), date, device:DEVICE, createdAt:Date.now(), updatedAt:Date.now(),
+    weather:null, sections:{}, photos:[], links:[], songs:[]};
+  SECTIONS.forEach(s => e.sections[s.k] = blankSection());
+  return e;
+}
+function hasContent(sec){ return !!(sec && ((sec.text||'').trim() || (sec.strokes||[]).length)); }
+function entryHasContent(e){
+  return SECTIONS.some(s => hasContent(e.sections[s.k])) || e.photos.length || e.links.length || e.songs.length;
+}
+
+let current = null;     // 지금 보고 있는 일기
+let saveTimer = null;
+function scheduleSave(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 450); }
+async function saveNow(){
+  clearTimeout(saveTimer);
+  if (!current) return;
+  if (!entryHasContent(current) && !current._saved) return; // 빈 일기는 저장하지 않음
+  current.updatedAt = Date.now();
+  const copy = JSON.parse(JSON.stringify(current)); delete copy._saved;
+  await DB.put('entries', copy);
+  current._saved = true;
+  toast('저장됨 ✓');
+  refreshDots();
+}
+
+/* ---------------- 날씨 (Open-Meteo, 무료) ---------------- */
+const WMO = {0:'맑음',1:'대체로 맑음',2:'구름 조금',3:'흐림',45:'안개',48:'안개',51:'이슬비',53:'이슬비',55:'이슬비',56:'언 이슬비',57:'언 이슬비',
+  61:'약한 비',63:'비',65:'강한 비',66:'언 비',67:'언 비',71:'약한 눈',73:'눈',75:'많은 눈',77:'싸락눈',80:'소나기',81:'소나기',82:'강한 소나기',
+  85:'눈 소나기',86:'눈 소나기',95:'뇌우',96:'뇌우·우박',99:'뇌우·우박'};
+async function fetchWeather(){
+  if (!(await getSet('weatherOn', true)) || !navigator.geolocation) return null;
+  try{
+    const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:9000, maximumAge:30*60*1000}));
+    const {latitude:la, longitude:lo} = pos.coords;
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la.toFixed(2)}&longitude=${lo.toFixed(2)}&current=temperature_2m,weather_code&timezone=auto`);
+    const j = await r.json();
+    return {text: WMO[j.current.weather_code] || '날씨', temp: Math.round(j.current.temperature_2m)};
+  }catch(e){ return null; }
+}
+
+/* ---------------- 손글씨 패드 ---------------- */
+let lastPenTime = 0;
+const penSeen = () => localStorage.getItem('penSeen') === '1';
+document.addEventListener('pointermove', e => { if (e.pointerType === 'pen') lastPenTime = Date.now(); }, {passive:true});
+
+class Pad{
+  constructor(wrap, data, onChange){
+    this.wrap = wrap; this.data = data; this.onChange = onChange;
+    data.strokes = data.strokes || []; data.h = data.h || 1.0;
+    this.c = document.createElement('canvas'); wrap.appendChild(this.c);
+    this.ctx = this.c.getContext('2d');
+    this.tool = 'pen'; this.color = '#1d1d1f'; this.size = 2.4; this.hist = [];
+    this.cur = null; this.scrollY = null;
+    this.bind();
+    new ResizeObserver(() => this.layout()).observe(wrap);
+    this.layout();
+  }
+  layout(){
+    const W = this.wrap.clientWidth; if (!W) return;
+    this.W = W; const H = Math.round(W * this.data.h); const dpr = window.devicePixelRatio || 1;
+    this.c.width = W * dpr; this.c.height = H * dpr; this.c.style.height = H + 'px';
+    this.ctx.setTransform(dpr,0,0,dpr,0,0); this.redraw();
+  }
+  redraw(){
+    const {ctx, W} = this; const H = W * this.data.h;
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle = '#eef0f4'; ctx.lineWidth = 1;
+    const gap = W * 0.06;
+    for (let y = gap; y < H; y += gap){ ctx.beginPath(); ctx.moveTo(0, Math.round(y)+.5); ctx.lineTo(W, Math.round(y)+.5); ctx.stroke(); }
+    this.data.strokes.forEach(s => drawStroke(ctx, s, W));
+  }
+  pt(e){ const r = this.c.getBoundingClientRect(); const p = e.pointerType === 'pen' ? (e.pressure || .5) : .5;
+    return [+((e.clientX - r.left)/this.W).toFixed(4), +((e.clientY - r.top)/this.W).toFixed(4), +p.toFixed(2)]; }
+  bind(){
+    const c = this.c;
+    c.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'pen'){ lastPenTime = Date.now(); if (!penSeen()) localStorage.setItem('penSeen','1'); }
+      if (e.pointerType === 'touch'){
+        if (Date.now() - lastPenTime < 1200) return;           // 손바닥 무시
+        if (penSeen()){ this.scrollY = e.clientY; return; }     // 펜 사용 기기: 손가락은 스크롤
+      }
+      e.preventDefault(); c.setPointerCapture(e.pointerId);
+      const erase = this.tool === 'eraser' || (e.buttons & 32) || (e.pointerType === 'pen' && (e.buttons & 2));
+      this.hist.push(this.data.strokes.slice()); if (this.hist.length > 40) this.hist.shift();
+      if (erase){ this.erasing = true; this.eraseAt(this.pt(e)); return; }
+      this.cur = {c:this.color, w:+(this.size / this.W).toFixed(5), p:[this.pt(e)]};
+      this.data.strokes.push(this.cur);
+    });
+    c.addEventListener('pointermove', e => {
+      if (e.pointerType === 'pen') lastPenTime = Date.now();
+      if (this.scrollY !== null && e.pointerType === 'touch'){ window.scrollBy(0, this.scrollY - e.clientY); this.scrollY = e.clientY; return; }
+      if (this.erasing){ this.eraseAt(this.pt(e)); return; }
+      if (!this.cur) return;
+      const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      for (const ev of (evs.length ? evs : [e])){
+        const p = this.pt(ev); const a = this.cur.p[this.cur.p.length-1];
+        this.cur.p.push(p); drawSeg(this.ctx, this.cur, a, p, this.W);
+      }
+    });
+    const end = () => {
+      this.scrollY = null;
+      if (this.erasing){ this.erasing = false; this.onChange(); return; }
+      if (!this.cur) return;
+      if (this.cur.p.length === 1){ drawStroke(this.ctx, this.cur, this.W); }
+      this.cur = null; this.onChange();
+    };
+    c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end); c.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch') end(); });
+  }
+  eraseAt([x,y]){
+    const r = 16 / this.W; const before = this.data.strokes.length;
+    this.data.strokes = this.data.strokes.filter(s => !s.p.some(q => (q[0]-x)**2 + (q[1]-y)**2 < r*r));
+    if (this.data.strokes.length !== before) this.redraw();
+  }
+  undo(){ if (!this.hist.length) return; this.data.strokes = this.hist.pop(); this.redraw(); this.onChange(); }
+  clear(){ if (!this.data.strokes.length) return; if (!confirm('이 칸의 손글씨를 모두 지울까요?')) return;
+    this.hist.push(this.data.strokes.slice()); this.data.strokes = []; this.redraw(); this.onChange(); }
+  grow(){ this.data.h = +(this.data.h + 0.5).toFixed(2); this.layout(); this.onChange(); }
+}
+function segW(s, p, W){ return Math.max(.6, s.w * W * (0.35 + 0.9 * p[2])); }
+function drawSeg(ctx, s, a, b, W){
+  ctx.strokeStyle = s.c; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = segW(s, b, W);
+  ctx.beginPath(); ctx.moveTo(a[0]*W, a[1]*W); ctx.lineTo(b[0]*W, b[1]*W); ctx.stroke();
+}
+function drawStroke(ctx, s, W){
+  const P = s.p; if (!P.length) return;
+  if (P.length === 1){ ctx.fillStyle = s.c; ctx.beginPath(); ctx.arc(P[0][0]*W, P[0][1]*W, segW(s,P[0],W)/2, 0, Math.PI*2); ctx.fill(); return; }
+  ctx.strokeStyle = s.c; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let i = 1; i < P.length; i++){
+    const a = P[i-1], b = P[i]; ctx.lineWidth = segW(s, b, W);
+    ctx.beginPath();
+    if (i > 1){ const z = P[i-2]; ctx.moveTo((z[0]+a[0])/2*W, (z[1]+a[1])/2*W); ctx.quadraticCurveTo(a[0]*W, a[1]*W, (a[0]+b[0])/2*W, (a[1]+b[1])/2*W); }
+    else { ctx.moveTo(a[0]*W, a[1]*W); ctx.lineTo((a[0]+b[0])/2*W, (a[1]+b[1])/2*W); }
+    ctx.stroke();
+  }
+  const a = P[P.length-2], b = P[P.length-1]; ctx.beginPath(); ctx.moveTo((a[0]+b[0])/2*W, (a[1]+b[1])/2*W); ctx.lineTo(b[0]*W, b[1]*W); ctx.stroke();
+}
+function strokesToImage(strokes, h, W=900){
+  const c = document.createElement('canvas'); const H = Math.round(W * (h||1));
+  c.width = W; c.height = H; const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+  (strokes||[]).forEach(s => drawStroke(ctx, s, W)); return c.toDataURL('image/png');
+}
+
+/* ---------------- 받아쓰기 (🎤) ---------------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let activeRec = null;
+function toggleDictation(btn, ta, onText){
+  if (activeRec){ const r = activeRec; activeRec = null; r.stop(); return; }
+  const rec = new SR(); rec.lang = 'ko-KR'; rec.interimResults = true; rec.continuous = true;
+  const base = ta.value; let finalText = '';
+  rec.onresult = ev => {
+    let interim = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++){
+      const t = ev.results[i][0].transcript;
+      if (ev.results[i].isFinal) finalText += t; else interim += t;
+    }
+    const sep = base && !/\s$/.test(base) ? ' ' : '';
+    ta.value = base + sep + finalText + interim; ta.dispatchEvent(new Event('autosize'));
+    onText(ta.value);
+  };
+  rec.onerror = ev => { if (ev.error === 'not-allowed') alert('마이크 사용을 허용해 주세요.'); else if (ev.error === 'network') toast('인터넷 연결이 필요합니다'); };
+  rec.onend = () => { btn.classList.remove('rec'); if (activeRec === rec) activeRec = null; onText(ta.value); };
+  try{ rec.start(); activeRec = rec; btn.classList.add('rec'); }catch(e){ toast('받아쓰기를 시작할 수 없습니다'); }
+}
+
+/* ---------------- 작성 칸 (손글씨/키보드) ---------------- */
+function buildWriter(box, data, onChange){
+  box.innerHTML = `
+    <div class="wtabs"><button data-m="pen">손글씨</button><button data-m="key">키보드</button></div>
+    <div class="pane-pen">
+      <div class="tools">
+        <button class="tbtn on" data-t="pen">펜</button><button class="tbtn" data-t="eraser">지우개</button>
+        <span class="sep"></span>
+        <button class="sw on" data-c="#1d1d1f" style="background:#1d1d1f"></button>
+        <button class="sw" data-c="#2f5bea" style="background:#2f5bea"></button>
+        <button class="sw" data-c="#d64545" style="background:#d64545"></button>
+        <span class="sep"></span>
+        <button class="tbtn" data-s="1.4"><span class="szdot" style="width:4px;height:4px"></span></button>
+        <button class="tbtn on" data-s="2.4"><span class="szdot" style="width:7px;height:7px"></span></button>
+        <button class="tbtn" data-s="4"><span class="szdot" style="width:11px;height:11px"></span></button>
+        <span class="sep"></span>
+        <button class="tbtn" data-a="undo">↶ 되돌리기</button>
+        <button class="tbtn" data-a="clear">전체 지움</button>
+      </div>
+      <div class="padwrap"></div>
+      <div class="padfoot"><span>${penSeen() ? '손가락으로 밀면 화면이 움직입니다' : 'S펜으로 쓰면 자동 저장됩니다'}</span><button class="linkbtn" data-a="grow">＋ 공간 늘리기</button></div>
+    </div>
+    <div class="pane-key">
+      <div class="tawrap"><textarea class="ta" placeholder="여기에 입력하세요"></textarea>
+      ${SR ? `<button class="mic" title="말로 입력">${MIC_SVG}</button>` : ''}</div>
+    </div>`;
+  const pad = new Pad($('.padwrap', box), data, onChange);
+  const ta = $('textarea', box); ta.value = data.text || '';
+  const autosize = () => { ta.style.height = 'auto'; ta.style.height = Math.max(180, ta.scrollHeight + 2) + 'px'; };
+  ta.addEventListener('input', () => { data.text = ta.value; autosize(); onChange(); });
+  ta.addEventListener('autosize', autosize);
+  const mic = $('.mic', box);
+  if (mic) mic.onclick = () => toggleDictation(mic, ta, v => { data.text = v; onChange(); });
+  const setMode = m => {
+    data.mode = m; $$('.wtabs button', box).forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    $('.pane-pen', box).classList.toggle('hidden', m !== 'pen'); $('.pane-key', box).classList.toggle('hidden', m !== 'key');
+    if (m === 'key') requestAnimationFrame(autosize); else pad.layout();
+  };
+  $$('.wtabs button', box).forEach(b => b.onclick = () => { setMode(b.dataset.m); onChange(); });
+  $$('[data-t]', box).forEach(b => b.onclick = () => { pad.tool = b.dataset.t; $$('[data-t]', box).forEach(x => x.classList.toggle('on', x === b)); });
+  $$('[data-c]', box).forEach(b => b.onclick = () => { pad.color = b.dataset.c; pad.tool = 'pen'; $$('[data-c]', box).forEach(x => x.classList.toggle('on', x === b)); $$('[data-t]', box).forEach(x => x.classList.toggle('on', x.dataset.t === 'pen')); });
+  $$('[data-s]', box).forEach(b => b.onclick = () => { pad.size = +b.dataset.s; $$('[data-s]', box).forEach(x => x.classList.toggle('on', x === b)); });
+  $('[data-a="undo"]', box).onclick = () => pad.undo();
+  $('[data-a="clear"]', box).onclick = () => pad.clear();
+  $('[data-a="grow"]', box).onclick = () => pad.grow();
+  setMode(data.mode || 'pen');
+  return {get data(){ return pad.data; }};
+}
+
+/* ---------------- 화면: 오늘/특정 날짜 ---------------- */
+let route = 'today';
+async function openDate(date, entryId){
+  await saveNow();
+  const list = (await DB.byDate(date)).sort((a,b) => a.createdAt - b.createdAt);
+  let e = entryId ? list.find(x => x.id === entryId) : (list.filter(x => x.device === DEVICE).pop() || list[list.length-1]);
+  if (e){ e._saved = true; }
+  else {
+    e = newEntry(date);
+    if (date === ymd(new Date())) fetchWeather().then(w => { if (w && current && current.id === e.id){ e.weather = w; renderDayMeta(); if (e._saved) scheduleSave(); } });
+  }
+  current = e; route = date === ymd(new Date()) ? 'today' : 'date';
+  renderEntry(list);
+}
+async function newEntrySameDate(){
+  await saveNow(); const d = current.date; current = newEntry(d);
+  if (d === ymd(new Date())) fetchWeather().then(w => { if (w && current){ current.weather = w; renderDayMeta(); } });
+  renderEntry(await DB.byDate(d));
+}
+
+function renderDayMeta(){
+  const e = current; const box = $('#daymeta'); if (!box) return;
+  const isToday = e.date === ymd(new Date());
+  box.innerHTML = `
+    <span>${parseYmd(e.date).getFullYear()}</span>
+    <span>· ${fmtTime(e.createdAt)} 작성</span>
+    ${e.weather ? `<span>· ${esc(e.weather.text)} ${e.weather.temp}°C</span>` : (isToday ? '' : '<span>· 지난 날짜 기록</span>')}
+    <span class="badge dev">${esc(e.device)}</span>
+    ${e.importedAt ? '<span class="badge">가져온 일기</span>' : ''}`;
+}
+
+async function renderEntry(sameDay){
+  setNav(route === 'today' ? 'today' : 'cal');
+  const e = current; const v = $('#view');
+  const others = (sameDay || []).filter(x => x.id !== e.id);
+  const lastExport = await getSet('lastExport', 0);
+  const total = (await DB.all('entries')).length;
+  const needBackup = total > 0 && Date.now() - lastExport > 7*864e5;
+  v.innerHTML = `
+    ${needBackup ? `<div class="banner"><span>${lastExport ? Math.floor((Date.now()-lastExport)/864e5)+'일째 백업하지 않았습니다.' : '아직 백업한 적이 없습니다.'}</span><button id="bkNow">지금 백업</button></div>` : ''}
+    <div class="daycard"><div class="big">${fmtDateBig(e.date)}</div><div class="meta" id="daymeta"></div></div>
+    ${others.length || e._saved ? `<div class="chips">
+        ${[...others, e].sort((a,b)=>a.createdAt-b.createdAt).map(x => `<button class="chip ${x.id===e.id?'on':''}" data-id="${x.id}">${esc(x.device)} ${fmtTime(x.createdAt)}</button>`).join('')}
+        <button class="chip" id="addSame">＋ 새 일기</button></div>` : ''}
+    <div id="accs"></div>`;
+  renderDayMeta();
+  if ($('#bkNow')) $('#bkNow').onclick = exportBackup;
+  $$('.chip[data-id]').forEach(b => b.onclick = () => openDate(e.date, b.dataset.id));
+  if ($('#addSame')) $('#addSame').onclick = newEntrySameDate;
+
+  const accs = $('#accs');
+  const items = [...SECTIONS.map(s => ({k:s.k, t:s.t})), {k:'attach', t:'사진 · 유튜브 첨부'}, {k:'songs', t:'창작 기록 (수노)'}];
+  items.forEach(it => {
+    const a = document.createElement('section'); a.className = 'acc'; a.dataset.k = it.k;
+    a.innerHTML = `<button class="acc-h"><span class="dot"></span><span>${it.t}</span><span class="sum"></span>${CHEV}</button><div class="acc-b"></div>`;
+    accs.appendChild(a);
+    $('.acc-h', a).onclick = () => {
+      const open = !a.classList.contains('open');
+      $$('.acc', accs).forEach(x => x.classList.remove('open'));
+      if (open){ a.classList.add('open'); if (!a._built){ buildBody(a, it.k); a._built = true; }
+        setTimeout(() => a.scrollIntoView({behavior:'smooth', block:'start'}), 60); }
+      if (activeRec) toggleDictation();
+    };
+  });
+  updateSummaries();
+}
+function updateSummaries(){
+  const e = current; if (!e) return;
+  $$('#accs .acc').forEach(a => {
+    const k = a.dataset.k; let on = false, sum = '';
+    if (e.sections[k]){ const s = e.sections[k]; on = hasContent(s);
+      sum = (s.text||'').trim() ? s.text.trim().slice(0,40) : (s.strokes.length ? '손글씨' : ''); }
+    else if (k === 'attach'){ on = e.photos.length || e.links.length; sum = [e.photos.length ? `사진 ${e.photos.length}` : '', e.links.length ? `링크 ${e.links.length}` : ''].filter(Boolean).join(' · '); }
+    else if (k === 'songs'){ on = e.songs.length; sum = e.songs.map(s => s.title || '제목 없음').join(', '); }
+    $('.dot', a).classList.toggle('on', !!on); $('.sum', a).textContent = sum;
+  });
+}
+const changed = () => { updateSummaries(); scheduleSave(); };
+
+function buildBody(a, k){
+  const b = $('.acc-b', a); const e = current;
+  if (e.sections[k]){ buildWriter(b, e.sections[k], changed); return; }
+  if (k === 'attach') return buildAttach(b);
+  if (k === 'songs') return buildSongs(b);
+}
+
+/* ---------------- 첨부 ---------------- */
+function ytId(u){ const m = String(u).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/))([\w-]{11})/); return m ? m[1] : null; }
+function buildAttach(b){
+  const e = current;
+  const draw = () => {
+    b.innerHTML = `
+      <div class="sub">사진</div>
+      <div class="photos">${e.photos.map((p,i) => `<div class="ph"><img src="${p}" data-i="${i}"><button class="x" data-del="${i}">×</button></div>`).join('')}</div>
+      <button class="btn sec" id="addPhoto">＋ 사진 추가</button>
+      <div class="sub">유튜브 · 링크</div>
+      <div class="row"><input class="inp" id="linkIn" placeholder="유튜브 주소를 붙여넣으세요" inputmode="url"><button class="btn" id="addLink">추가</button></div>
+      <div class="links">${e.links.map((l,i) => { const id = ytId(l.url);
+        return `<div class="lk">${id ? `<img src="https://img.youtube.com/vi/${id}/mqdefault.jpg" alt="">` : ''}<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a><button class="x" data-dl="${i}">×</button></div>`; }).join('')}</div>`;
+    $('#addPhoto', b).onclick = () => { const inp = $('#photoInput'); inp.value = ''; inp.onchange = async () => {
+      for (const f of inp.files){ try{ e.photos.push(await shrinkImage(f)); }catch(err){ toast('사진을 불러오지 못했습니다'); } }
+      draw(); changed(); }; inp.click(); };
+    $$('[data-del]', b).forEach(x => x.onclick = () => { if (confirm('이 사진을 삭제할까요?')){ e.photos.splice(+x.dataset.del, 1); draw(); changed(); } });
+    $$('.ph img', b).forEach(img => img.onclick = () => sheet(`<img src="${img.src}">`));
+    $('#addLink', b).onclick = () => { const u = $('#linkIn', b).value.trim(); if (!u) return;
+      e.links.push({url: /^https?:\/\//.test(u) ? u : 'https://' + u, addedAt: Date.now()}); draw(); changed(); };
+    $$('[data-dl]', b).forEach(x => x.onclick = () => { e.links.splice(+x.dataset.dl, 1); draw(); changed(); });
+  };
+  draw();
+}
+function shrinkImage(file, max=1600){
+  return new Promise((res, rej) => {
+    const img = new Image(); const url = URL.createObjectURL(file);
+    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', .82)); };
+    img.onerror = rej; img.src = url;
+  });
+}
+
+/* ---------------- 창작 기록 (수노) ---------------- */
+function newSong(){
+  const n = new Date(); const local = `${ymd(n)}T${pad2(n.getHours())}:${pad2(n.getMinutes())}`;
+  return {id:uid(), title:'', sunoUrl:'', genAt:local, plan:'유료', prompt:'', intent:'',
+    roles:{lyrics:'본인', compose:'수노(AI)', arrange:'수노(AI)', vocal:'수노(AI)'},
+    lyrics:{mode:'pen', text:'', strokes:[], h:1.2}, versions:[]};
+}
+function lyricSig(l){ return (l.text||'') + '|' + (l.strokes||[]).length + '|' + (l.strokes||[]).reduce((n,s)=>n+s.p.length,0); }
+function pushVersion(song, auto){
+  const l = song.lyrics; const sig = lyricSig(l);
+  const last = song.versions[song.versions.length-1];
+  if (last && last.sig === sig) return false;
+  song.versions.push({at:Date.now(), auto, sig, text:l.text||'', strokes:JSON.parse(JSON.stringify(l.strokes||[])), h:l.h});
+  return true;
+}
+function buildSongs(b){
+  const e = current;
+  const draw = () => {
+    b.innerHTML = `<p style="color:var(--sub);font-size:14px;margin:0 0 12px">직접 쓴 가사의 작성 과정을 기록합니다. 가사는 수정할 때마다 시간과 함께 버전이 남습니다.</p>
+      <div id="songList"></div><button class="btn sec" id="addSong">＋ 곡 추가</button>`;
+    const list = $('#songList', b);
+    e.songs.forEach((song, idx) => {
+      const card = document.createElement('div'); card.className = 'song';
+      card.innerHTML = `
+        <h4><span>곡 ${idx+1}</span><button class="linkbtn" style="color:var(--danger)" data-rm>삭제</button></h4>
+        <div class="f"><label>곡 제목</label><input class="inp" data-f="title" value="${esc(song.title)}"></div>
+        <div class="f"><label>수노 곡 링크</label><input class="inp" data-f="sunoUrl" value="${esc(song.sunoUrl)}" placeholder="https://suno.com/song/..." inputmode="url"></div>
+        <div class="row" style="gap:10px">
+          <div class="f" style="flex:1"><label>수노 생성 일시</label><input class="inp" type="datetime-local" data-f="genAt" value="${esc(song.genAt)}"></div>
+          <div class="f" style="width:130px"><label>요금제</label><select class="inp" data-f="plan">${['유료','무료'].map(o=>`<option ${song.plan===o?'selected':''}>${o}</option>`).join('')}</select></div>
+        </div>
+        <div class="f"><label>수노에 입력한 스타일·프롬프트</label><textarea data-f="prompt">${esc(song.prompt)}</textarea></div>
+        <div class="f"><label>창작 의도·메모 (어떤 생각으로 썼는지)</label><textarea data-f="intent">${esc(song.intent)}</textarea></div>
+        <div class="f"><label>기여 구분</label><table class="contrib">
+          ${[['lyrics','작사'],['compose','작곡'],['arrange','편곡'],['vocal','보컬']].map(([k,t]) => `<tr><td style="width:30%">${t}</td><td><select data-r="${k}">${ROLE_OPTS.map(o=>`<option ${song.roles[k]===o?'selected':''}>${o}</option>`).join('')}</select></td></tr>`).join('')}
+        </table></div>
+        <div class="f"><label>가사</label><div class="lyr"></div></div>
+        <div class="sub">가사 버전 이력</div>
+        <div class="vers"></div>
+        <div class="btns" style="margin-top:10px"><button class="btn sec" data-ver>지금 버전 저장</button><button class="btn blue" data-pdf>창작 경위서 PDF</button></div>`;
+      list.appendChild(card);
+      const drawVers = () => {
+        $('.vers', card).innerHTML = song.versions.length ? song.versions.slice().reverse().map((v,i) => {
+          const n = song.versions.length - i;
+          return `<div class="ver"><div>${n}차 · <span>${fmtFull(v.at)} ${v.auto ? '(자동)' : '(직접 저장)'}</span></div><button class="linkbtn" data-v="${n-1}">보기</button></div>`; }).join('')
+          : '<div style="color:var(--muted)">아직 저장된 버전이 없습니다. 가사를 쓰면 10분 간격으로 자동 저장됩니다.</div>';
+        $$('[data-v]', card).forEach(x => x.onclick = () => { const v = song.versions[+x.dataset.v];
+          sheet(`<h3>${+x.dataset.v+1}차 가사 · ${fmtFull(v.at)}</h3>${v.text ? `<pre style="white-space:pre-wrap;font-family:inherit">${esc(v.text)}</pre>` : ''}${v.strokes.length ? `<img src="${strokesToImage(v.strokes, v.h)}">` : ''}`); });
+      };
+      drawVers();
+      $$('[data-f]', card).forEach(inp => inp.addEventListener('input', () => { song[inp.dataset.f] = inp.value; changed(); }));
+      $$('[data-r]', card).forEach(sel => sel.onchange = () => { song.roles[sel.dataset.r] = sel.value; changed(); });
+      buildWriter($('.lyr', card), song.lyrics, () => {
+        const last = song.versions[song.versions.length-1];
+        if (!last || Date.now() - last.at > 10*60*1000){ if (pushVersion(song, true)) drawVers(); }
+        changed();
+      });
+      $('[data-ver]', card).onclick = () => { if (pushVersion(song, false)){ drawVers(); changed(); toast('버전 저장됨'); } else toast('바뀐 내용이 없습니다'); };
+      $('[data-pdf]', card).onclick = () => printReport(song);
+      $('[data-rm]', card).onclick = () => { if (confirm('이 곡의 창작 기록을 삭제할까요?')){ e.songs.splice(idx, 1); draw(); changed(); } };
+    });
+    $('#addSong', b).onclick = () => { e.songs.push(newSong()); draw(); changed(); };
+  };
+  draw();
+}
+async function printReport(song){
+  await saveNow();
+  const name = await getSet('authorName', '');
+  const l = song.lyrics; const e = current;
+  const roleLabel = {lyrics:'작사', compose:'작곡', arrange:'편곡', vocal:'보컬'};
+  $('#print').innerHTML = `
+    <h1>창작 경위서</h1>
+    <div class="pd">작성일 ${fmtFull(Date.now())}</div>
+    <h2>1. 작품 정보</h2>
+    <table>
+      <tr><th>곡 제목</th><td>${esc(song.title || '(제목 없음)')}</td></tr>
+      <tr><th>작사자</th><td>${esc(name || '(설정에서 이름을 입력하세요)')}</td></tr>
+      <tr><th>기록 일자 / 작성 기기</th><td>${esc(e.date)} / ${esc(e.device)}</td></tr>
+      <tr><th>사용한 AI 도구</th><td>Suno (${esc(song.plan)} 요금제)</td></tr>
+      <tr><th>수노 곡 링크</th><td>${esc(song.sunoUrl || '-')}</td></tr>
+      <tr><th>수노 생성 일시</th><td>${esc((song.genAt||'').replace('T',' ') || '-')}</td></tr>
+    </table>
+    <h2>2. 기여 구분</h2>
+    <table>${Object.keys(roleLabel).map(k => `<tr><th>${roleLabel[k]}</th><td>${esc(song.roles[k])}</td></tr>`).join('')}</table>
+    <h2>3. 창작 의도</h2><pre>${esc(song.intent || '-')}</pre>
+    <h2>4. AI 입력 내용 (스타일·프롬프트)</h2><pre>${esc(song.prompt || '-')}</pre>
+    <h2>5. 최종 가사</h2>
+    ${l.text ? `<pre>${esc(l.text)}</pre>` : ''}${(l.strokes||[]).length ? `<img src="${strokesToImage(l.strokes, l.h)}">` : ''}${!l.text && !(l.strokes||[]).length ? '-' : ''}
+    <h2>6. 가사 작성 이력 (${song.versions.length}개 버전)</h2>
+    ${song.versions.map((v,i) => `<div class="v"><b>${i+1}차</b> · ${fmtFull(v.at)} ${v.auto ? '(자동 저장)' : '(직접 저장)'}<br>
+      ${v.text ? `<pre>${esc(v.text)}</pre>` : ''}${v.strokes.length ? `<img src="${strokesToImage(v.strokes, v.h, 700)}">` : ''}</div>`).join('') || '-'}
+    <div class="note">※ 이 문서는 '나의 일기' 앱에 기록된 내용을 바탕으로 자동 생성되었습니다. 기록은 사용자 기기에 저장된 자료이며, 공적 증명을 위해서는 한국저작권위원회 저작권 등록 등 외부 기록을 함께 갖추시기 바랍니다.</div>`;
+  setTimeout(() => window.print(), 150);
+}
+window.addEventListener('afterprint', () => { $('#print').innerHTML = ''; });
+
+/* ---------------- 달력 ---------------- */
+let calMonth = new Date(); let calSel = null; let entryDates = new Set();
+async function refreshDots(){ entryDates = new Set((await DB.all('entries')).map(x => x.date)); }
+async function renderCal(){
+  await saveNow(); route = 'cal'; setNav('cal');
+  const all = await DB.all('entries'); const map = {};
+  all.forEach(x => (map[x.date] = map[x.date] || []).push(x));
+  const y = calMonth.getFullYear(), m = calMonth.getMonth();
+  const first = new Date(y, m, 1).getDay(); const days = new Date(y, m+1, 0).getDate(); const today = ymd(new Date());
+  let cells = WD.map(w => `<div class="wd">${w}</div>`).join('') + '<div></div>'.repeat(first);
+  for (let d = 1; d <= days; d++){
+    const ds = `${y}-${pad2(m+1)}-${pad2(d)}`; const wd = new Date(y, m, d).getDay();
+    cells += `<button class="d ${map[ds]?'has':''} ${ds===today?'today':''} ${ds===calSel?'sel':''} ${wd===0?'sun':''} ${wd===6?'sat':''}" data-d="${ds}">${d}</button>`;
+  }
+  const monthCount = Object.keys(map).filter(k => k.startsWith(`${y}-${pad2(m+1)}`)).length;
+  $('#view').innerHTML = `
+    <div class="calhead"><button id="pm">‹</button><h2>${y}년 ${m+1}월</h2><button id="nm">›</button></div>
+    <div class="cal">${cells}</div>
+    <p style="color:var(--muted);font-size:14px;text-align:center;margin:12px 0 0">이 달에 ${monthCount}일 기록</p>
+    <div class="daylist" id="daylist"></div>`;
+  $('#pm').onclick = () => { calMonth = new Date(y, m-1, 1); renderCal(); };
+  $('#nm').onclick = () => { calMonth = new Date(y, m+1, 1); renderCal(); };
+  $$('.cal .d').forEach(b => b.onclick = () => { calSel = b.dataset.d; $$('.cal .d').forEach(x => x.classList.toggle('sel', x === b)); showDay(calSel, map[calSel] || []); });
+  if (calSel) showDay(calSel, map[calSel] || []);
+}
+function showDay(ds, list){
+  const box = $('#daylist'); const future = ds > ymd(new Date());
+  box.innerHTML = `<div class="sub">${fmtDateBig(ds)}</div>` +
+    list.sort((a,b)=>a.createdAt-b.createdAt).map(x => {
+      const first = SECTIONS.map(s => (x.sections[s.k]||{}).text).find(t => (t||'').trim()) || (SECTIONS.some(s => (x.sections[s.k]||{}).strokes?.length) ? '손글씨 일기' : '첨부·창작 기록');
+      return `<button class="ditem" data-id="${x.id}"><span>${esc(first.slice(0,30))}<br><small>${esc(x.device)} · ${fmtTime(x.createdAt)}</small></span><span>›</span></button>`; }).join('') +
+    (future ? '' : `<button class="btn sec" id="writeDay" style="width:100%;margin-top:4px">＋ 이 날짜로 일기 쓰기</button>`);
+  $$('.ditem', box).forEach(b => b.onclick = () => openDate(ds, b.dataset.id));
+  if ($('#writeDay')) $('#writeDay').onclick = async () => { await saveNow(); current = newEntry(ds); route = 'date'; renderEntry(list); };
+}
+
+/* ---------------- 백업 · 가져오기 ---------------- */
+async function exportBackup(){
+  await saveNow();
+  const entries = await DB.all('entries');
+  const data = {app:APP_ID, version:1, exportedAt:Date.now(), device:DEVICE, entries};
+  const name = `일기백업_${DEVICE}_${ymd(new Date()).replace(/-/g,'')}.json`;
+  const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+  const file = new File([blob], name, {type:'application/json'});
+  if (navigator.canShare && navigator.canShare({files:[file]}) && confirm('백업 파일을 바로 공유(드라이브·카톡 등)할까요?\n[취소]를 누르면 기기에 다운로드합니다.')){
+    try{ await navigator.share({files:[file], title:name}); }catch(e){ return; }
+  } else {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  await setSet('lastExport', Date.now()); toast(`백업 완료 · 일기 ${entries.length}개`);
+  if (route === 'set') renderSettings();
+}
+function importBackup(){
+  const inp = $('#importInput'); inp.value = '';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    let data; try{ data = JSON.parse(await f.text()); }catch(e){ return alert('백업 파일을 읽을 수 없습니다.'); }
+    if (data.app !== APP_ID || !Array.isArray(data.entries)) return alert("'나의 일기' 백업 파일이 아닙니다.");
+    const mine = await DB.all('entries'); const byId = new Map(mine.map(x => [x.id, x]));
+    const importedSrc = new Set(mine.filter(x => x.importedFrom).map(x => x.importedFrom + '@' + x.srcUpdatedAt));
+    let add = [], same = 0, both = 0;
+    for (const x of data.entries){
+      const ex = byId.get(x.id);
+      if (ex && ex.updatedAt === x.updatedAt){ same++; continue; }
+      if (importedSrc.has(x.id + '@' + x.updatedAt)){ same++; continue; }
+      if (ex){ both++; add.push({...x, id:uid(), importedFrom:x.id, srcUpdatedAt:x.updatedAt, importedAt:Date.now()}); }
+      else add.push({...x, importedAt:Date.now()});
+    }
+    const sameDates = add.filter(x => mine.some(m => m.date === x.date)).length;
+    if (!add.length) return alert(`새로 가져올 일기가 없습니다.\n(이미 있는 일기 ${same}개는 건너뜀)`);
+    if (!confirm(`[가져오기 미리보기]\n· 새로 추가: ${add.length}개\n· 같은 날짜에 이미 일기가 있는 것: ${sameDates}개 → 둘 다 보존\n· 이미 있어서 건너뜀: ${same}개\n\n가져오기 전에 현재 일기를 자동 백업합니다. 진행할까요?`)) return;
+    await DB.put('snapshots', {at:Date.now(), reason:'가져오기 전 자동 백업', entries:mine});
+    const snaps = (await DB.all('snapshots')).sort((a,b)=>a.at-b.at);
+    for (const s of snaps.slice(0, Math.max(0, snaps.length - 3))) await DB.del('snapshots', s.id);
+    for (const x of add) await DB.put('entries', x);
+    await refreshDots(); alert(`가져오기 완료: ${add.length}개 추가`); renderSettings();
+  };
+  inp.click();
+}
+
+/* ---------------- 설정 ---------------- */
+async function renderSettings(){
+  await saveNow(); route = 'set'; setNav('set');
+  const entries = await DB.all('entries'); const snaps = (await DB.all('snapshots')).sort((a,b)=>b.at-a.at);
+  const lastExport = await getSet('lastExport', 0); const weatherOn = await getSet('weatherOn', true); const name = await getSet('authorName', '');
+  let usage = ''; if (navigator.storage && navigator.storage.estimate){ const s = await navigator.storage.estimate(); usage = `사용 중 ${(s.usage/1048576).toFixed(1)}MB`; }
+  const persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false;
+  $('#view').innerHTML = `
+    <div class="card"><h3>백업</h3>
+      <p>일기는 이 기기 안에만 저장됩니다. 일주일에 한 번 백업해 두세요.<br>마지막 백업: ${lastExport ? fmtFull(lastExport) : '없음'} · 일기 ${entries.length}개 · ${usage}</p>
+      <div class="btns"><button class="btn" id="exp">백업 내보내기</button><button class="btn sec" id="imp">가져오기 (합치기)</button></div>
+      <p style="margin:12px 0 0;font-size:13.5px">가져오기는 다른 기기(PC 등)의 백업을 <b>합칩니다</b>. 같은 날짜 일기는 둘 다 보존되고, 이미 있는 일기는 건너뜁니다.</p></div>
+    ${snaps.length ? `<div class="card"><h3>가져오기 전 상태로 되돌리기</h3><p>가져오기를 할 때마다 직전 상태가 자동 보관됩니다 (최근 3개).</p>
+      ${snaps.map(s => `<div class="ver"><div>${fmtFull(s.at)} <span>· 일기 ${s.entries.length}개</span></div><button class="linkbtn" data-snap="${s.id}">이 상태로 복원</button></div>`).join('')}</div>` : ''}
+    <div class="card"><h3>창작 경위서 작사자 이름</h3><p>창작 경위서 PDF에 들어갈 이름입니다.</p>
+      <div class="row"><input class="inp" id="nameIn" value="${esc(name)}" placeholder="이름"><button class="btn sec" id="nameSave">저장</button></div></div>
+    <div class="card"><div class="toggle"><div><h3>날씨 자동 표시</h3><p style="margin:0">오늘 일기에 날씨·기온을 표시합니다 (위치 권한 필요)</p></div><input type="checkbox" id="wOn" ${weatherOn?'checked':''}></div></div>
+    <div class="card"><h3>비밀번호</h3><p>앱을 열 때 입력하는 숫자 4자리입니다.</p><button class="btn sec" id="pinChg">비밀번호 변경</button></div>
+    <div class="card"><h3>이 기기 정보</h3><p>작성 기기 표시: <span class="badge dev">${DEVICE}</span><br>저장 공간 보호: ${persisted ? '켜짐 (브라우저가 임의로 지우지 않음)' : '꺼짐'}</p>
+      ${persisted ? '' : '<button class="btn sec" id="persist">저장 공간 보호 켜기</button>'}</div>
+    <p style="text-align:center;color:var(--muted);font-size:13px">나의 일기 v1</p>`;
+  $('#exp').onclick = exportBackup; $('#imp').onclick = importBackup;
+  $$('[data-snap]').forEach(b => b.onclick = async () => {
+    const s = snaps.find(x => x.id === +b.dataset.snap);
+    if (!confirm(`${fmtFull(s.at)} 상태(일기 ${s.entries.length}개)로 되돌릴까요?\n그 이후 가져온 일기와 그 뒤에 쓴 내용은 사라집니다.`)) return;
+    await DB.clear('entries'); for (const x of s.entries) await DB.put('entries', x); await refreshDots(); toast('복원 완료'); renderSettings(); });
+  $('#nameSave').onclick = async () => { await setSet('authorName', $('#nameIn').value.trim()); toast('저장됨 ✓'); };
+  $('#wOn').onchange = ev => setSet('weatherOn', ev.target.checked);
+  $('#pinChg').onclick = () => showLock('change');
+  if ($('#persist')) $('#persist').onclick = async () => { const ok = await navigator.storage.persist(); toast(ok ? '보호가 켜졌습니다' : '이 브라우저에서는 켤 수 없습니다'); renderSettings(); };
+}
+
+/* ---------------- 공통 ---------------- */
+function sheet(html){
+  const m = document.createElement('div'); m.className = 'modal';
+  m.innerHTML = `<div class="sheet">${html}<div style="margin-top:14px"><button class="btn sec" style="width:100%">닫기</button></div></div>`;
+  m.onclick = ev => { if (ev.target === m || ev.target.closest('button')) m.remove(); };
+  document.body.appendChild(m);
+}
+function setNav(r){ $$('.nav button').forEach(b => b.classList.toggle('on', b.dataset.go === r)); }
+$$('.nav button').forEach(b => b.onclick = () => {
+  if (b.dataset.go === 'today') openDate(ymd(new Date()));
+  if (b.dataset.go === 'cal') renderCal();
+  if (b.dataset.go === 'set') renderSettings();
+});
+function tick(){ const n = new Date(); $('#clock').textContent = `${n.getMonth()+1}.${n.getDate()} ${fmtTime(n)}`; }
+
+/* ---------------- 잠금 (숫자 4자리) ---------------- */
+async function hashPin(p){
+  const data = new TextEncoder().encode('hi5ive:' + p);
+  if (crypto.subtle){ const h = await crypto.subtle.digest('SHA-256', data); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2,'0')).join(''); }
+  let h = 5381; for (const b of data) h = ((h << 5) + h + b) | 0; return 'x' + h;
+}
+let lockMode = 'unlock', pinBuf = '', pinFirst = '', fails = 0, lockUntil = 0, unlocked = false;
+function showLock(mode){
+  lockMode = mode; pinBuf = ''; pinFirst = '';
+  $('#lockTitle').textContent = mode === 'unlock' ? '비밀번호' : (mode === 'setup' ? '비밀번호 만들기' : '현재 비밀번호');
+  $('#lockMsg').textContent = mode === 'setup' ? '앱을 열 때 쓸 숫자 4자리를 정하세요' : '';
+  $('#forgot').classList.toggle('hidden', mode === 'setup');
+  drawPins(); $('#lock').classList.remove('hidden');
+}
+function drawPins(){ $$('#pins i').forEach((i,n) => i.classList.toggle('f', n < pinBuf.length)); }
+function failPin(msg){ const p = $('#pins'); p.classList.remove('shake'); void p.offsetWidth; p.classList.add('shake'); $('#lockMsg').textContent = msg; pinBuf = ''; drawPins(); }
+async function pinDone(){
+  const saved = await getSet('pinHash', null); const h = await hashPin(pinBuf);
+  if (lockMode === 'unlock'){
+    if (Date.now() < lockUntil) return failPin(`${Math.ceil((lockUntil-Date.now())/1000)}초 후 다시 시도하세요`);
+    if (h === saved){ fails = 0; $('#lock').classList.add('hidden'); pinBuf = ''; drawPins();
+      if (!unlocked){ unlocked = true; startApp(); } lastActive = Date.now(); return; }
+    fails++; if (fails >= 5){ lockUntil = Date.now() + 30000; fails = 0; return failPin('5회 틀렸습니다. 30초 후 다시 시도하세요'); }
+    return failPin(`비밀번호가 맞지 않습니다 (${fails}/5)`);
+  }
+  if (lockMode === 'change'){ if (h !== saved) return failPin('현재 비밀번호가 맞지 않습니다');
+    lockMode = 'setup'; pinBuf = ''; drawPins(); $('#lockTitle').textContent = '새 비밀번호'; $('#lockMsg').textContent = '새 숫자 4자리를 입력하세요'; $('#forgot').classList.add('hidden'); return; }
+  if (lockMode === 'setup'){
+    if (!pinFirst){ pinFirst = pinBuf; pinBuf = ''; drawPins(); $('#lockMsg').textContent = '한 번 더 입력하세요'; return; }
+    if (pinFirst !== pinBuf){ pinFirst = ''; return failPin('서로 다릅니다. 처음부터 다시 입력하세요'); }
+    await setSet('pinHash', h); $('#lock').classList.add('hidden'); toast('비밀번호가 설정되었습니다'); pinBuf = ''; drawPins();
+    if (!unlocked){ unlocked = true; startApp(); }
+  }
+}
+function buildKeypad(){
+  const kp = $('#keypad');
+  ['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(k => {
+    const b = document.createElement('button'); b.textContent = k; if (!k){ b.style.visibility = 'hidden'; }
+    b.onclick = () => { if (k === '⌫'){ pinBuf = pinBuf.slice(0,-1); drawPins(); return; }
+      if (pinBuf.length >= 4) return; pinBuf += k; drawPins(); if (pinBuf.length === 4) setTimeout(pinDone, 120); };
+    kp.appendChild(b);
+  });
+  $('#forgot').onclick = async () => {
+    if (!confirm('비밀번호를 다시 정하려면 이 기기의 모든 일기를 지우고 처음부터 시작해야 합니다.\n백업 파일이 있으면 나중에 [가져오기]로 되살릴 수 있습니다.\n\n계속할까요?')) return;
+    if (prompt("정말 초기화하려면 '초기화'라고 입력하세요") !== '초기화') return;
+    await DB.clear('entries'); await DB.clear('snapshots'); await DB.del('settings', 'pinHash'); location.reload();
+  };
+}
+let lastActive = Date.now(), hiddenAt = 0;
+['pointerdown','keydown'].forEach(ev => document.addEventListener(ev, () => lastActive = Date.now(), {passive:true}));
+setInterval(() => { if (unlocked && $('#lock').classList.contains('hidden') && Date.now() - lastActive > 5*60*1000){ saveNow(); showLock('unlock'); } }, 20000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){ hiddenAt = Date.now(); saveNow(); if (activeRec) activeRec.stop(); }
+  else if (unlocked && Date.now() - hiddenAt > 60*1000) showLock('unlock');
+});
+window.addEventListener('pagehide', () => saveNow());
+
+/* ---------------- 시작 ---------------- */
+async function startApp(){
+  tick(); setInterval(tick, 20000);
+  await refreshDots();
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+  openDate(ymd(new Date()));
+}
+(async function init(){
+  buildKeypad();
+  try{ await DB.open(); }catch(e){ document.body.innerHTML = '<p style="padding:24px">저장소를 열 수 없습니다. 크롬 브라우저로 열어 주세요.</p>'; return; }
+  const pin = await getSet('pinHash', null);
+  showLock(pin ? 'unlock' : 'setup');
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
