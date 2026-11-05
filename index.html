@@ -247,8 +247,10 @@ function detectDevice(){
 }
 const DEVICE_TYPE = detectDevice();                 // 자동 판별: 탭 / 휴대폰 / PC
 const DEVICE_GUESS = {'탭':'탭1', '휴대폰':'HP', 'PC':'PC'}[DEVICE_TYPE];
-const DEVICE_OPTS = ['PC','NOTE','HP','탭1','탭2'];
 let DEVICE = localStorage.getItem('deviceName') || DEVICE_GUESS; // 사용자가 정한 이 기기 이름
+// 이름과 별개로, 이 기기를 구분하는 바뀌지 않는 고유번호 (이름을 바꿔도 내 일기를 정확히 찾기 위함)
+const DEVICE_ID = localStorage.getItem('deviceId') || (() => { const v = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); localStorage.setItem('deviceId', v); return v; })();
+const isMine = x => x.deviceId ? x.deviceId === DEVICE_ID : !x.importedAt;
 
 /* ---------------- 저장소 (IndexedDB) ---------------- */
 const DB = {
@@ -286,7 +288,7 @@ function setSet(k, v){ return DB.put('settings', {k, v}); }
 /* ---------------- 일기 데이터 ---------------- */
 function blankSection(){ return {mode:'pen', text:'', strokes:[], h:1.0}; }
 function newEntry(date){
-  const e = {id:uid(), date, device:DEVICE, createdAt:Date.now(), updatedAt:Date.now(),
+  const e = {id:uid(), date, device:DEVICE, deviceId:DEVICE_ID, createdAt:Date.now(), updatedAt:Date.now(),
     weather:null, sections:{}, photos:[], links:[], songs:[]};
   SECTIONS.forEach(s => e.sections[s.k] = blankSection());
   return e;
@@ -540,7 +542,7 @@ let route = 'today';
 async function openDate(date, entryId){
   await saveNow();
   const list = (await DB.byDate(date)).sort((a,b) => a.createdAt - b.createdAt);
-  let e = entryId ? list.find(x => x.id === entryId) : (list.filter(x => x.device === DEVICE).pop() || list[list.length-1]);
+  let e = entryId ? list.find(x => x.id === entryId) : (list.filter(isMine).pop() || list[list.length-1]);
   if (e){ e._saved = true; }
   else {
     e = newEntry(date);
@@ -866,7 +868,7 @@ async function renderSettings(){
     <div class="card"><h3>비밀번호</h3><p>앱을 열 때 입력하는 숫자 4자리입니다.</p><button class="btn sec" id="pinChg">비밀번호 변경</button></div>
     <div class="card"><h3>이 기기 정보</h3><p>이 기기 이름: <span class="badge dev">${esc(DEVICE)}</span> <button class="linkbtn" id="devChg">바꾸기</button><br>저장 공간 보호: ${persisted ? '켜짐 (브라우저가 임의로 지우지 않음)' : '꺼짐'}</p>
       ${persisted ? '' : '<button class="btn sec" id="persist">저장 공간 보호 켜기</button>'}</div>
-    <p style="text-align:center;color:var(--muted);font-size:13px">나의 일기 v1.2</p>`;
+    <p style="text-align:center;color:var(--muted);font-size:13px">나의 일기 v1.3</p>`;
   $('#exp').onclick = exportBackup; $('#imp').onclick = importBackup;
   $$('[data-snap]').forEach(b => b.onclick = async () => {
     const s = snaps.find(x => x.id === +b.dataset.snap);
@@ -995,27 +997,39 @@ window.addEventListener('popstate', async () => {
 function askDeviceName(fromSettings){
   return new Promise(done => {
     const m = document.createElement('div'); m.className = 'modal'; if (!fromSettings) m.dataset.keep = '1';
-    m.innerHTML = `<div class="sheet"><h3>이 기기의 이름을 골라 주세요</h3>
-      <p style="color:var(--sub);font-size:14.5px;margin:0 0 14px">일기마다 어느 기기에서 썼는지 표시됩니다. 기기마다 한 번만 정하면 됩니다.</p>
-      <div class="btns">${DEVICE_OPTS.map(o => `<button class="btn ${o===DEVICE?'blue':'sec'}" data-n="${o}" style="min-width:84px">${o}</button>`).join('')}</div>
-      <div class="row" style="margin-top:12px"><input class="inp" id="devOther" placeholder="직접 입력 (예: 탭3, 회사PC)" maxlength="8"><button class="btn sec" id="devOk">확인</button></div>
+    m.innerHTML = `<div class="sheet"><h3>${fromSettings ? '이 기기 이름 바꾸기' : '이 기기의 이름을 정해 주세요'}</h3>
+      <p style="color:var(--sub);font-size:14.5px;margin:0 0 14px">일기마다 어느 기기에서 썼는지 이 이름으로 표시됩니다.<br>기기마다 서로 다른 이름을 지어 주세요. (예: 탭1, 거실PC, 노트북, 내폰)</p>
+      <div class="row"><input class="inp" id="devName" value="${esc(DEVICE)}" maxlength="10" autocomplete="off" enterkeyhint="done"><button class="btn blue" id="devOk">저장</button></div>
       ${fromSettings ? '<button class="btn sec" id="devCancel" style="width:100%;margin-top:12px">취소</button>' : ''}</div>`;
     document.body.appendChild(m);
-    const pick = async n => { n = n.trim(); if (!n) return; m.remove(); await setDeviceName(n); done(); };
-    $$('[data-n]', m).forEach(b => b.onclick = () => pick(b.dataset.n));
-    $('#devOk', m).onclick = () => pick($('#devOther', m).value);
+    const inp = $('#devName', m); setTimeout(() => { inp.focus(); inp.select(); }, 50);
+    const ok = async () => {
+      const n = inp.value.trim().replace(/\s+/g, ' ');
+      if (!n) return toast('이름을 입력하세요');
+      if (fromSettings && n === DEVICE){ m.remove(); return done(); }
+      m.remove(); await setDeviceName(n, !fromSettings); done();
+    };
+    $('#devOk', m).onclick = ok; inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') ok(); });
     if ($('#devCancel', m)) $('#devCancel', m).onclick = () => { m.remove(); done(); };
   });
 }
-async function setDeviceName(n){
-  const old = DEVICE; const first = !localStorage.getItem('deviceName');
+async function setDeviceName(n, first){
+  const old = DEVICE;
   localStorage.setItem('deviceName', n); DEVICE = n;
-  // 이 기기에서 쓴 일기(가져온 일기 제외)의 표시를 새 이름으로 바꿈
-  const legacy = new Set([old, first ? DEVICE_TYPE : old]);
-  const all = await DB.all('entries'); let k = 0;
-  for (const x of all){ if (!x.importedAt && legacy.has(x.device) && x.device !== n){ x.device = n; await DB.put('entries', x); k++; } }
-  if (current && !current.importedAt && legacy.has(current.device)) current.device = n;
-  toast(`이 기기 이름: ${n}${k ? ` · 일기 ${k}개 표시 변경` : ''}`);
+  const all = await DB.all('entries'); const mine = all.filter(isMine);
+  // 처음 정할 때는 기존 일기 표시를 자동으로 맞추고, 바꿀 때는 물어봄
+  let relabel = first;
+  if (!first && mine.some(x => x.device !== n))
+    relabel = confirm(`이 기기에서 쓴 기존 일기 ${mine.length}개의 표시도 '${n}'(으)로 바꿀까요?\n\n[확인] 모두 '${n}'(으)로 변경\n[취소] 기존 일기는 '${old}' 그대로, 새 일기부터 '${n}'`);
+  let k = 0;
+  for (const x of mine){
+    let ch = false;
+    if (!x.deviceId){ x.deviceId = DEVICE_ID; ch = true; }
+    if (relabel && x.device !== n){ x.device = n; ch = true; k++; }
+    if (ch) await DB.put('entries', x);        // 수정 시각(updatedAt)은 그대로 → 다른 기기로 옮길 때 중복이 생기지 않음
+  }
+  if (current && isMine(current)){ current.deviceId = DEVICE_ID; if (relabel || !current._saved) current.device = n; }
+  toast(`이 기기 이름: ${n}${k ? ` · 기존 일기 ${k}개 표시 변경` : ''}`);
   if (route === 'set') renderSettings(); else if (current) renderDayMeta();
 }
 
