@@ -31,6 +31,7 @@ input,textarea,select{font:inherit;color:inherit}
 .nav button{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--sub)}
 .nav button.on{background:var(--accent-soft);color:var(--accent)}
 .nav svg{width:22px;height:22px}
+.nav .exitbtn{width:auto;padding:0 12px;font-size:14.5px;font-weight:600;color:var(--danger);border:1px solid #f1d2d2;margin-left:4px}
 
 main{max-width:860px;margin:0 auto;padding:16px 16px 120px}
 
@@ -196,6 +197,7 @@ textarea.ta:focus{border-color:#b9c7f7}
     <button data-go="today" title="오늘"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button>
     <button data-go="cal" title="달력"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></button>
     <button data-go="set" title="설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    <button data-go="exit" title="종료" class="exitbtn">종료</button>
   </nav>
 </header>
 
@@ -356,48 +358,84 @@ class Pad{
     return [+((e.clientX - r.left)/this.W).toFixed(4), +((e.clientY - r.top)/this.W).toFixed(4), +p.toFixed(2)]; }
   bind(){
     const c = this.c;
+    this.drawId = null;   // 지금 그리고 있는 펜/마우스의 번호 (하나만 허용)
+    this.scrollId = null; // 화면을 밀고 있는 손가락 번호
+    c.addEventListener('contextmenu', e => e.preventDefault());
     c.addEventListener('pointerdown', e => {
-      if (e.pointerType === 'pen'){ lastPenTime = Date.now(); if (!penSeen()) localStorage.setItem('penSeen','1'); }
+      if (e.pointerType === 'pen'){ lastPenTime = Date.now(); if (!penSeen()) localStorage.setItem('penSeen','1');
+        if (this.drawId !== null && this.drawPointer !== 'pen') this.abortStroke(); }  // 손가락 선이 진행 중이면 펜 우선
       if (e.pointerType === 'touch'){
-        if (Date.now() - lastPenTime < 1200) return;           // 손바닥 무시
-        if (penSeen()){ this.scrollY = e.clientY; return; }     // 펜 사용 기기: 손가락은 스크롤
+        // 탭·펜 사용 기기에서는 손가락/손바닥이 절대 선을 긋지 않음 → 화면 스크롤만
+        const big = (e.width || 0) > 40 || (e.height || 0) > 40;                  // 손바닥처럼 넓은 접촉
+        if (big || Date.now() - lastPenTime < 1500 || this.drawId !== null) return;
+        if (DEVICE === '탭' || penSeen()){ if (this.scrollId === null){ this.scrollId = e.pointerId; this.scrollY = e.clientY; } return; }
       }
-      e.preventDefault(); c.setPointerCapture(e.pointerId);
-      const erase = this.tool === 'eraser' || (e.buttons & 32) || (e.pointerType === 'pen' && (e.buttons & 2));
+      if (this.drawId !== null) return;                                   // 이미 다른 포인터가 그리는 중
+      e.preventDefault(); try{ c.setPointerCapture(e.pointerId); }catch(_){}
+      this.drawId = e.pointerId; this.drawPointer = e.pointerType;
       this.hist.push(this.data.strokes.slice()); if (this.hist.length > 40) this.hist.shift();
-      if (erase){ this.erasing = true; this.eraseAt(this.pt(e)); return; }
+      if (this.tool === 'eraser' || this.penButton(e)){ this.erasing = true; this.lastErase = this.pt(e); this.eraseAt(this.lastErase); return; }
       this.cur = {c:this.color, w:+(this.size / this.W).toFixed(5), p:[this.pt(e)]};
       this.data.strokes.push(this.cur);
     });
     c.addEventListener('pointermove', e => {
       if (e.pointerType === 'pen') lastPenTime = Date.now();
-      if (this.scrollY !== null && e.pointerType === 'touch'){ window.scrollBy(0, this.scrollY - e.clientY); this.scrollY = e.clientY; return; }
-      if (this.erasing){ this.eraseAt(this.pt(e)); return; }
-      if (!this.cur) return;
+      if (e.pointerId === this.scrollId){
+        if (Date.now() - lastPenTime < 800) return;
+        window.scrollBy(0, this.scrollY - e.clientY); this.scrollY = e.clientY; return; }
+      if (e.pointerId !== this.drawId) return;                            // 다른 손가락·손바닥 움직임은 무시
+      if (!this.erasing && this.cur && this.penButton(e)){                // 그리는 도중 펜 버튼 → 지우개로 전환
+        this.data.strokes = this.data.strokes.filter(s => s !== this.cur); this.cur = null; this.erasing = true; this.redraw(); }
       const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
       for (const ev of (evs.length ? evs : [e])){
-        const p = this.pt(ev); const a = this.cur.p[this.cur.p.length-1];
+        const p = this.pt(ev);
+        if (this.erasing){ this.eraseAt(p, this.lastErase); this.lastErase = p; continue; }
+        if (!this.cur) return;
+        const a = this.cur.p[this.cur.p.length-1];
+        if (Math.hypot(p[0]-a[0], p[1]-a[1]) > 0.35) continue;            // 비정상적인 순간 이동 점은 버림
         this.cur.p.push(p); drawSeg(this.ctx, this.cur, a, p, this.W);
       }
     });
-    const end = () => {
-      this.scrollY = null;
+    const end = e => {
+      if (e.pointerId === this.scrollId){ this.scrollId = null; this.scrollY = null; return; }
+      if (e.pointerId !== this.drawId) return;
+      this.drawId = null;
       if (this.erasing){ this.erasing = false; this.onChange(); return; }
       if (!this.cur) return;
       if (this.cur.p.length === 1){ drawStroke(this.ctx, this.cur, this.W); }
       this.cur = null; this.onChange();
     };
-    c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end); c.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch') end(); });
+    c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
+    c.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') end(e); });
   }
-  eraseAt([x,y]){
-    const r = 16 / this.W; const before = this.data.strokes.length;
-    this.data.strokes = this.data.strokes.filter(s => !s.p.some(q => (q[0]-x)**2 + (q[1]-y)**2 < r*r));
+  penButton(e){ return e.pointerType === 'pen' && ((e.buttons & 32) || (e.buttons & 2) || e.button === 5); }
+  abortStroke(){ if (this.cur){ this.data.strokes = this.data.strokes.filter(s => s !== this.cur); this.cur = null; this.redraw(); }
+    this.drawId = null; this.erasing = false; }
+  eraseAt(p, prev){
+    // 지우개가 지나간 길과 선의 "구간"이 가까우면 그 선 전체를 지움 (긴 직선도 지워짐)
+    const r = 20 / this.W; const before = this.data.strokes.length;
+    const hit = s => { const P = s.p;
+      if (P.length === 1) return segDist(P[0], p, prev || p) < r;
+      for (let i = 1; i < P.length; i++){ if (segSegDist(P[i-1], P[i], prev || p, p) < r) return true; }
+      return false; };
+    this.data.strokes = this.data.strokes.filter(s => !hit(s));
     if (this.data.strokes.length !== before) this.redraw();
   }
   undo(){ if (!this.hist.length) return; this.data.strokes = this.hist.pop(); this.redraw(); this.onChange(); }
   clear(){ if (!this.data.strokes.length) return; if (!confirm('이 칸의 손글씨를 모두 지울까요?')) return;
     this.hist.push(this.data.strokes.slice()); this.data.strokes = []; this.redraw(); this.onChange(); }
   grow(){ this.data.h = +(this.data.h + 0.5).toFixed(2); this.layout(); this.onChange(); }
+}
+function segDist(q, a, b){ // 점 q와 선분 ab 사이 거리
+  const dx = b[0]-a[0], dy = b[1]-a[1]; const L = dx*dx + dy*dy;
+  let t = L ? ((q[0]-a[0])*dx + (q[1]-a[1])*dy) / L : 0; t = Math.max(0, Math.min(1, t));
+  return Math.hypot(q[0]-(a[0]+t*dx), q[1]-(a[1]+t*dy));
+}
+function segSegDist(a, b, c, d){
+  const cr = (p, q, r) => (q[0]-p[0])*(r[1]-p[1]) - (q[1]-p[1])*(r[0]-p[0]);
+  const d1 = cr(c,d,a), d2 = cr(c,d,b), d3 = cr(a,b,c), d4 = cr(a,b,d);
+  if (((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))) return 0;   // 서로 교차
+  return Math.min(segDist(a,c,d), segDist(b,c,d), segDist(c,a,b), segDist(d,a,b));
 }
 function segW(s, p, W){ return Math.max(.6, s.w * W * (0.35 + 0.9 * p[2])); }
 function drawSeg(ctx, s, a, b, W){
@@ -465,7 +503,7 @@ function buildWriter(box, data, onChange){
         <button class="tbtn" data-a="clear">전체 지움</button>
       </div>
       <div class="padwrap"></div>
-      <div class="padfoot"><span>${penSeen() ? '손가락으로 밀면 화면이 움직입니다' : 'S펜으로 쓰면 자동 저장됩니다'}</span><button class="linkbtn" data-a="grow">＋ 공간 늘리기</button></div>
+      <div class="padfoot"><span>S펜으로 쓰면 자동 저장 · 손가락으로 밀면 화면 이동</span><button class="linkbtn" data-a="grow">＋ 공간 늘리기</button></div>
     </div>
     <div class="pane-key">
       <div class="tawrap"><textarea class="ta" placeholder="여기에 입력하세요"></textarea>
@@ -506,10 +544,11 @@ async function openDate(date, entryId){
     if (date === ymd(new Date())) fetchWeather().then(w => { if (w && current && current.id === e.id){ e.weather = w; renderDayMeta(); if (e._saved) scheduleSave(); } });
   }
   current = e; route = date === ymd(new Date()) ? 'today' : 'date';
+  pushView({t:'entry', date, id: e._saved ? e.id : null});
   renderEntry(list);
 }
 async function newEntrySameDate(){
-  await saveNow(); const d = current.date; current = newEntry(d);
+  await saveNow(); const d = current.date; current = newEntry(d); pushView({t:'entry', date:d, id:null, n:current.id});
   if (d === ymd(new Date())) fetchWeather().then(w => { if (w && current){ current.weather = w; renderDayMeta(); } });
   renderEntry(await DB.byDate(d));
 }
@@ -590,7 +629,7 @@ function buildAttach(b){
       <div class="photos">${e.photos.map((p,i) => `<div class="ph"><img src="${p}" data-i="${i}"><button class="x" data-del="${i}">×</button></div>`).join('')}</div>
       <button class="btn sec" id="addPhoto">＋ 사진 추가</button>
       <div class="sub">유튜브 · 링크</div>
-      <div class="row"><input class="inp" id="linkIn" placeholder="유튜브 주소를 붙여넣으세요" inputmode="url"><button class="btn" id="addLink">추가</button></div>
+      <div class="row"><input class="inp" id="linkIn" placeholder="유튜브 주소를 붙여넣으면 바로 추가됩니다" inputmode="url" enterkeyhint="done" autocomplete="off"><button class="btn" id="addLink">추가</button></div>
       <div class="links">${e.links.map((l,i) => { const id = ytId(l.url);
         return `<div class="lk">${id ? `<img src="https://img.youtube.com/vi/${id}/mqdefault.jpg" alt="">` : ''}<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || l.url)}</a><button class="x" data-dl="${i}">×</button></div>`; }).join('')}</div>`;
     $('#addPhoto', b).onclick = () => { const inp = $('#photoInput'); inp.value = ''; inp.onchange = async () => {
@@ -598,8 +637,21 @@ function buildAttach(b){
       draw(); changed(); }; inp.click(); };
     $$('[data-del]', b).forEach(x => x.onclick = () => { if (confirm('이 사진을 삭제할까요?')){ e.photos.splice(+x.dataset.del, 1); draw(); changed(); } });
     $$('.ph img', b).forEach(img => img.onclick = () => sheet(`<img src="${img.src}">`));
-    $('#addLink', b).onclick = () => { const u = $('#linkIn', b).value.trim(); if (!u) return;
-      e.links.push({url: /^https?:\/\//.test(u) ? u : 'https://' + u, addedAt: Date.now()}); draw(); changed(); };
+    // 추가 버튼·키보드 [이동/Enter]·붙여넣기 모두 지원. 공유 문구 안의 주소도 찾아냄
+    const addFrom = text => {
+      const urls = String(text).match(/https?:\/\/[^\s<>"']+|(?:www\.|m\.)?(?:youtu\.be|youtube\.com)\/[^\s<>"']+/gi) || [];
+      if (!urls.length){ if (String(text).trim()) toast('주소를 찾지 못했습니다'); return false; }
+      urls.forEach(u => { if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+        if (!e.links.some(l => l.url === u)) e.links.push({url:u, addedAt:Date.now()}); });
+      draw(); changed(); toast('링크 추가됨'); return true;
+    };
+    const li = $('#linkIn', b), ab = $('#addLink', b);
+    let fired = 0;
+    const go = ev => { ev.preventDefault(); if (Date.now() - fired < 500) return; fired = Date.now(); addFrom(li.value); };
+    ab.addEventListener('pointerdown', go);   // 키보드가 내려가며 버튼 위치가 바뀌기 전에 처리
+    ab.addEventListener('click', go);
+    li.addEventListener('keydown', ev => { if (ev.key === 'Enter') go(ev); });
+    li.addEventListener('paste', () => setTimeout(() => { if (/https?:\/\/|youtu/i.test(li.value)) addFrom(li.value); }, 50));
     $$('[data-dl]', b).forEach(x => x.onclick = () => { e.links.splice(+x.dataset.dl, 1); draw(); changed(); });
   };
   draw();
@@ -714,7 +766,7 @@ window.addEventListener('afterprint', () => { $('#print').innerHTML = ''; });
 let calMonth = new Date(); let calSel = null; let entryDates = new Set();
 async function refreshDots(){ entryDates = new Set((await DB.all('entries')).map(x => x.date)); }
 async function renderCal(){
-  await saveNow(); route = 'cal'; setNav('cal');
+  await saveNow(); route = 'cal'; setNav('cal'); pushView({t:'cal'});
   const all = await DB.all('entries'); const map = {};
   all.forEach(x => (map[x.date] = map[x.date] || []).push(x));
   const y = calMonth.getFullYear(), m = calMonth.getMonth();
@@ -743,7 +795,7 @@ function showDay(ds, list){
       return `<button class="ditem" data-id="${x.id}"><span>${esc(first.slice(0,30))}<br><small>${esc(x.device)} · ${fmtTime(x.createdAt)}</small></span><span>›</span></button>`; }).join('') +
     (future ? '' : `<button class="btn sec" id="writeDay" style="width:100%;margin-top:4px">＋ 이 날짜로 일기 쓰기</button>`);
   $$('.ditem', box).forEach(b => b.onclick = () => openDate(ds, b.dataset.id));
-  if ($('#writeDay')) $('#writeDay').onclick = async () => { await saveNow(); current = newEntry(ds); route = 'date'; renderEntry(list); };
+  if ($('#writeDay')) $('#writeDay').onclick = async () => { await saveNow(); current = newEntry(ds); route = 'date'; pushView({t:'entry', date:ds, id:null, n:current.id}); renderEntry(list); };
 }
 
 /* ---------------- 백업 · 가져오기 ---------------- */
@@ -793,7 +845,7 @@ function importBackup(){
 
 /* ---------------- 설정 ---------------- */
 async function renderSettings(){
-  await saveNow(); route = 'set'; setNav('set');
+  await saveNow(); route = 'set'; setNav('set'); pushView({t:'set'});
   const entries = await DB.all('entries'); const snaps = (await DB.all('snapshots')).sort((a,b)=>b.at-a.at);
   const lastExport = await getSet('lastExport', 0); const weatherOn = await getSet('weatherOn', true); const name = await getSet('authorName', '');
   let usage = ''; if (navigator.storage && navigator.storage.estimate){ const s = await navigator.storage.estimate(); usage = `사용 중 ${(s.usage/1048576).toFixed(1)}MB`; }
@@ -811,7 +863,7 @@ async function renderSettings(){
     <div class="card"><h3>비밀번호</h3><p>앱을 열 때 입력하는 숫자 4자리입니다.</p><button class="btn sec" id="pinChg">비밀번호 변경</button></div>
     <div class="card"><h3>이 기기 정보</h3><p>작성 기기 표시: <span class="badge dev">${DEVICE}</span><br>저장 공간 보호: ${persisted ? '켜짐 (브라우저가 임의로 지우지 않음)' : '꺼짐'}</p>
       ${persisted ? '' : '<button class="btn sec" id="persist">저장 공간 보호 켜기</button>'}</div>
-    <p style="text-align:center;color:var(--muted);font-size:13px">나의 일기 v1</p>`;
+    <p style="text-align:center;color:var(--muted);font-size:13px">나의 일기 v1.1</p>`;
   $('#exp').onclick = exportBackup; $('#imp').onclick = importBackup;
   $$('[data-snap]').forEach(b => b.onclick = async () => {
     const s = snaps.find(x => x.id === +b.dataset.snap);
@@ -835,7 +887,20 @@ $$('.nav button').forEach(b => b.onclick = () => {
   if (b.dataset.go === 'today') openDate(ymd(new Date()));
   if (b.dataset.go === 'cal') renderCal();
   if (b.dataset.go === 'set') renderSettings();
+  if (b.dataset.go === 'exit') exitApp();
 });
+async function exitApp(){
+  await saveNow(); if (activeRec) activeRec.stop();
+  localStorage.removeItem('lastSeen');               // 종료 버튼은 다음에 열 때 바로 비밀번호를 물음
+  try{ window.close(); }catch(e){}
+  setTimeout(() => { showLock('unlock'); $('#lockMsg').textContent = '저장 후 종료했습니다. 홈 버튼을 눌러 나가셔도 됩니다.'; }, 300);
+}
+/* 화면 이동 기록 (뒤로가기 = 앞에 보던 글/화면으로) */
+let curView = null, navStack = [], navBack = false;
+function pushView(v){
+  if (!navBack && curView && JSON.stringify(curView) !== JSON.stringify(v)){ navStack.push(curView); if (navStack.length > 40) navStack.shift(); }
+  curView = v;
+}
 function tick(){ const n = new Date(); $('#clock').textContent = `${n.getMonth()+1}.${n.getDate()} ${fmtTime(n)}`; }
 
 /* ---------------- 잠금 (숫자 4자리) ---------------- */
@@ -889,11 +954,36 @@ function buildKeypad(){
 let lastActive = Date.now(), hiddenAt = 0;
 ['pointerdown','keydown'].forEach(ev => document.addEventListener(ev, () => lastActive = Date.now(), {passive:true}));
 setInterval(() => { if (unlocked && $('#lock').classList.contains('hidden') && Date.now() - lastActive > 5*60*1000){ saveNow(); showLock('unlock'); } }, 20000);
+// 앱을 닫거나 다른 화면으로 나갔다가 30초 안에 돌아오면 비밀번호를 묻지 않음
+const GRACE = 30*1000;
+const markSeen = () => { if (unlocked && $('#lock').classList.contains('hidden')) localStorage.setItem('lastSeen', String(Date.now())); };
+setInterval(markSeen, 5000);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden){ hiddenAt = Date.now(); saveNow(); if (activeRec) activeRec.stop(); }
-  else if (unlocked && Date.now() - hiddenAt > 60*1000) showLock('unlock');
+  if (document.hidden){ hiddenAt = Date.now(); markSeen(); saveNow(); if (activeRec) activeRec.stop(); }
+  else if (unlocked && Date.now() - hiddenAt > GRACE) showLock('unlock');
 });
-window.addEventListener('pagehide', () => saveNow());
+window.addEventListener('pagehide', () => { markSeen(); saveNow(); });
+
+/* ---------------- 뒤로가기 버튼 ---------------- */
+// 뒤로가기: 열린 창 닫기 → 앞에 보던 글·화면으로 이동. 앱은 닫히지 않음 (닫기는 [종료] 버튼)
+function trapBack(){ history.pushState({diary:1}, ''); }
+window.addEventListener('popstate', async () => {
+  trapBack();
+  const m = $('.modal'); if (m){ m.remove(); return; }
+  if (!$('#lock').classList.contains('hidden')) return;
+  if (activeRec) activeRec.stop();
+  // 이동 기록이 지워진 글(빈 새 글 등)은 건너뜀
+  while (navStack.length){
+    const v = navStack.pop(); navBack = true;
+    try{
+      if (v.t === 'cal'){ await renderCal(); }
+      else if (v.t === 'set'){ await renderSettings(); }
+      else { await openDate(v.date, v.id || undefined); }
+    } finally { navBack = false; }
+    curView = v; return;
+  }
+  toast('처음 화면입니다 · 끝내려면 [종료]를 누르세요');
+});
 
 /* ---------------- 시작 ---------------- */
 async function startApp(){
@@ -906,7 +996,10 @@ async function startApp(){
   buildKeypad();
   try{ await DB.open(); }catch(e){ document.body.innerHTML = '<p style="padding:24px">저장소를 열 수 없습니다. 크롬 브라우저로 열어 주세요.</p>'; return; }
   const pin = await getSet('pinHash', null);
-  showLock(pin ? 'unlock' : 'setup');
+  const recent = Date.now() - +(localStorage.getItem('lastSeen') || 0) < GRACE;
+  if (pin && recent){ unlocked = true; startApp(); }   // 30초 안에 다시 열면 바로 사용
+  else showLock(pin ? 'unlock' : 'setup');
+  trapBack();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
 </script>

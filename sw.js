@@ -1,5 +1,5 @@
 // 나의 일기 — 오프라인 지원 (새 버전은 온라인일 때 자동 반영)
-const CACHE = 'hi5ive-diary-v1';
+const CACHE = 'hi5ive-diary-v1.1';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
