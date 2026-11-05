@@ -245,7 +245,10 @@ function detectDevice(){
   if (/iPhone|iPod/.test(ua)) return '휴대폰';
   return 'PC';
 }
-const DEVICE = detectDevice();
+const DEVICE_TYPE = detectDevice();                 // 자동 판별: 탭 / 휴대폰 / PC
+const DEVICE_GUESS = {'탭':'탭1', '휴대폰':'HP', 'PC':'PC'}[DEVICE_TYPE];
+const DEVICE_OPTS = ['PC','NOTE','HP','탭1','탭2'];
+let DEVICE = localStorage.getItem('deviceName') || DEVICE_GUESS; // 사용자가 정한 이 기기 이름
 
 /* ---------------- 저장소 (IndexedDB) ---------------- */
 const DB = {
@@ -368,7 +371,7 @@ class Pad{
         // 탭·펜 사용 기기에서는 손가락/손바닥이 절대 선을 긋지 않음 → 화면 스크롤만
         const big = (e.width || 0) > 40 || (e.height || 0) > 40;                  // 손바닥처럼 넓은 접촉
         if (big || Date.now() - lastPenTime < 1500 || this.drawId !== null) return;
-        if (DEVICE === '탭' || penSeen()){ if (this.scrollId === null){ this.scrollId = e.pointerId; this.scrollY = e.clientY; } return; }
+        if (DEVICE_TYPE === '탭' || penSeen()){ if (this.scrollId === null){ this.scrollId = e.pointerId; this.scrollY = e.clientY; } return; }
       }
       if (this.drawId !== null) return;                                   // 이미 다른 포인터가 그리는 중
       e.preventDefault(); try{ c.setPointerCapture(e.pointerId); }catch(_){}
@@ -861,9 +864,9 @@ async function renderSettings(){
       <div class="row"><input class="inp" id="nameIn" value="${esc(name)}" placeholder="이름"><button class="btn sec" id="nameSave">저장</button></div></div>
     <div class="card"><div class="toggle"><div><h3>날씨 자동 표시</h3><p style="margin:0">오늘 일기에 날씨·기온을 표시합니다 (위치 권한 필요)</p></div><input type="checkbox" id="wOn" ${weatherOn?'checked':''}></div></div>
     <div class="card"><h3>비밀번호</h3><p>앱을 열 때 입력하는 숫자 4자리입니다.</p><button class="btn sec" id="pinChg">비밀번호 변경</button></div>
-    <div class="card"><h3>이 기기 정보</h3><p>작성 기기 표시: <span class="badge dev">${DEVICE}</span><br>저장 공간 보호: ${persisted ? '켜짐 (브라우저가 임의로 지우지 않음)' : '꺼짐'}</p>
+    <div class="card"><h3>이 기기 정보</h3><p>이 기기 이름: <span class="badge dev">${esc(DEVICE)}</span> <button class="linkbtn" id="devChg">바꾸기</button><br>저장 공간 보호: ${persisted ? '켜짐 (브라우저가 임의로 지우지 않음)' : '꺼짐'}</p>
       ${persisted ? '' : '<button class="btn sec" id="persist">저장 공간 보호 켜기</button>'}</div>
-    <p style="text-align:center;color:var(--muted);font-size:13px">나의 일기 v1.1</p>`;
+    <p style="text-align:center;color:var(--muted);font-size:13px">나의 일기 v1.2</p>`;
   $('#exp').onclick = exportBackup; $('#imp').onclick = importBackup;
   $$('[data-snap]').forEach(b => b.onclick = async () => {
     const s = snaps.find(x => x.id === +b.dataset.snap);
@@ -872,6 +875,7 @@ async function renderSettings(){
   $('#nameSave').onclick = async () => { await setSet('authorName', $('#nameIn').value.trim()); toast('저장됨 ✓'); };
   $('#wOn').onchange = ev => setSet('weatherOn', ev.target.checked);
   $('#pinChg').onclick = () => showLock('change');
+  $('#devChg').onclick = () => askDeviceName(true);
   if ($('#persist')) $('#persist').onclick = async () => { const ok = await navigator.storage.persist(); toast(ok ? '보호가 켜졌습니다' : '이 브라우저에서는 켤 수 없습니다'); renderSettings(); };
 }
 
@@ -969,7 +973,7 @@ window.addEventListener('pagehide', () => { markSeen(); saveNow(); });
 function trapBack(){ history.pushState({diary:1}, ''); }
 window.addEventListener('popstate', async () => {
   trapBack();
-  const m = $('.modal'); if (m){ m.remove(); return; }
+  const m = $('.modal'); if (m){ if (!m.dataset.keep) m.remove(); return; }
   if (!$('#lock').classList.contains('hidden')) return;
   if (activeRec) activeRec.stop();
   // 이동 기록이 지워진 글(빈 새 글 등)은 건너뜀
@@ -986,9 +990,39 @@ window.addEventListener('popstate', async () => {
 });
 
 /* ---------------- 시작 ---------------- */
+/* ---------------- 기기 이름 (PC / NOTE / HP / 탭1 / 탭2) ---------------- */
+// 브라우저는 데스크톱과 노트북, 탭1과 탭2를 스스로 구분할 수 없어 기기마다 한 번 직접 고릅니다.
+function askDeviceName(fromSettings){
+  return new Promise(done => {
+    const m = document.createElement('div'); m.className = 'modal'; if (!fromSettings) m.dataset.keep = '1';
+    m.innerHTML = `<div class="sheet"><h3>이 기기의 이름을 골라 주세요</h3>
+      <p style="color:var(--sub);font-size:14.5px;margin:0 0 14px">일기마다 어느 기기에서 썼는지 표시됩니다. 기기마다 한 번만 정하면 됩니다.</p>
+      <div class="btns">${DEVICE_OPTS.map(o => `<button class="btn ${o===DEVICE?'blue':'sec'}" data-n="${o}" style="min-width:84px">${o}</button>`).join('')}</div>
+      <div class="row" style="margin-top:12px"><input class="inp" id="devOther" placeholder="직접 입력 (예: 탭3, 회사PC)" maxlength="8"><button class="btn sec" id="devOk">확인</button></div>
+      ${fromSettings ? '<button class="btn sec" id="devCancel" style="width:100%;margin-top:12px">취소</button>' : ''}</div>`;
+    document.body.appendChild(m);
+    const pick = async n => { n = n.trim(); if (!n) return; m.remove(); await setDeviceName(n); done(); };
+    $$('[data-n]', m).forEach(b => b.onclick = () => pick(b.dataset.n));
+    $('#devOk', m).onclick = () => pick($('#devOther', m).value);
+    if ($('#devCancel', m)) $('#devCancel', m).onclick = () => { m.remove(); done(); };
+  });
+}
+async function setDeviceName(n){
+  const old = DEVICE; const first = !localStorage.getItem('deviceName');
+  localStorage.setItem('deviceName', n); DEVICE = n;
+  // 이 기기에서 쓴 일기(가져온 일기 제외)의 표시를 새 이름으로 바꿈
+  const legacy = new Set([old, first ? DEVICE_TYPE : old]);
+  const all = await DB.all('entries'); let k = 0;
+  for (const x of all){ if (!x.importedAt && legacy.has(x.device) && x.device !== n){ x.device = n; await DB.put('entries', x); k++; } }
+  if (current && !current.importedAt && legacy.has(current.device)) current.device = n;
+  toast(`이 기기 이름: ${n}${k ? ` · 일기 ${k}개 표시 변경` : ''}`);
+  if (route === 'set') renderSettings(); else if (current) renderDayMeta();
+}
+
 async function startApp(){
   tick(); setInterval(tick, 20000);
   await refreshDots();
+  if (!localStorage.getItem('deviceName')) await askDeviceName(false);
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
   openDate(ymd(new Date()));
 }
